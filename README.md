@@ -1,6 +1,6 @@
 # Prompt Studio
 
-Prompt Studio is a local prompt-building app that helps users create clear, structured, and reusable AI prompt packages. Instead of only generating a basic prompt, it produces a full package with system instructions, user prompt templates, safety rules, input/output structure, and review metadata. It is designed for folks who want more reliable and organized prompt workflows without needing deep prompt-engineering experience.
+Prompt Studio is a local prompt-building app that helps users create clear, structured, and reusable AI prompt packages. Instead of only generating a basic prompt, it produces a full package with system instructions, user prompt templates, safety rules, input/output structure, and review metadata. It is designed for folks who want more reliable and organized prompt workflows without deep prompt-engineering experience.
 
 Built with Streamlit and Ollama, Prompt Studio keeps generation local and privacy-friendly. Users can choose an expert role, describe a task, add style or factual reference documents, and generate prompts that are easier to review, reuse, and improve over time. It also includes optional quality-enhancement with DSPy, prompt history, approval status tracking, and local API support for notebooks or automation.
 
