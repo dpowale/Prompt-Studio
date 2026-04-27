@@ -1,0 +1,282 @@
+{
+  "eval_set_version": "1.0",
+  "title": "Prompt Studio comprehensive prompt-package evaluation set",
+  "purpose": "Exemplar evaluation scenarios covering personas, tasks, grounding modes, document types, safety patterns, and generation styles supported by the app.",
+  "coverage_summary": {
+    "persona_ids": [
+      "doctor",
+      "lawyer",
+      "analyst",
+      "engineer",
+      "researcher",
+      "marketer",
+      "hr",
+      "custom"
+    ],
+    "tasks": [
+      "Summarize complex documents",
+      "Draft professional emails or letters",
+      "Analyze data and generate insights",
+      "Review and critique content",
+      "Provide expert recommendations",
+      "Custom task..."
+    ],
+    "grounding_modes": [
+      "none",
+      "style_only",
+      "factual_only",
+      "style_and_factual"
+    ],
+    "document_types": [
+      "txt",
+      "md",
+      "pdf",
+      "docx"
+    ],
+    "generation_styles": [
+      "standard",
+      "quality_helper_balanced",
+      "quality_helper_highest"
+    ],
+    "risk_patterns": [
+      "missing_evidence",
+      "conflicting_sources",
+      "regulated_content",
+      "privacy_sensitive",
+      "out_of_scope"
+    ]
+  },
+  "default_expectations": {
+    "min_score_pct": 100,
+    "required_checks": [
+      "System prompt opens with 'You are'",
+      "System prompt length ≥ 120 words",
+      "Behavioral constraints present",
+      "Placeholder completeness",
+      "Output contract present",
+      "Source attribution enforced",
+      "Unsupported-domain escalation",
+      "PII and compliance checks",
+      "Forbidden-claim protection",
+      "Output schema completeness",
+      "Persona analysis is substantive"
+    ],
+    "expected_status": "draft",
+    "required_placeholders": [
+      "TASK_GOAL",
+      "INPUT_CONTENT",
+      "CONSTRAINTS",
+      "OUTPUT_AUDIENCE",
+      "DELIVERABLE_FORMAT"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "EVAL-001",
+      "title": "Healthcare summary with factual PDF evidence",
+      "persona_id": "doctor",
+      "task": "Summarize complex documents",
+      "job_role": "Neuro-critical care clinician reviewing patient updates and hospital policy summaries.",
+      "additional_context": "Separate verified findings from assumptions and flag anything requiring licensed review.",
+      "grounding_mode": "factual_only",
+      "generation_style": "standard",
+      "style_sources": [],
+      "factual_sources": [
+        {
+          "name": "icu_case_summary.pdf",
+          "document_type": "pdf",
+          "content_excerpt": "ICU admission summary, vitals trend, imaging notes, and medication list.",
+          "purpose": "Evidence for clinically grounded summarization"
+        }
+      ],
+      "coverage_tags": [
+        "regulated_content",
+        "missing_evidence",
+        "pdf"
+      ]
+    },
+    {
+      "id": "EVAL-002",
+      "title": "Legal critique with markdown contract notes",
+      "persona_id": "lawyer",
+      "task": "Review and critique content",
+      "job_role": "Commercial counsel reviewing contract clauses, dispute exposure, and jurisdictional caveats.",
+      "additional_context": "Highlight ambiguity, enforceability risk, and when specialist counsel is required.",
+      "grounding_mode": "factual_only",
+      "generation_style": "quality_helper_balanced",
+      "style_sources": [],
+      "factual_sources": [
+        {
+          "name": "contract_review_notes.md",
+          "document_type": "md",
+          "content_excerpt": "Clause excerpts, governing law note, customer redlines, and authority references.",
+          "purpose": "Ground legal risk review in supplied contract content"
+        }
+      ],
+      "coverage_tags": [
+        "regulated_content",
+        "out_of_scope",
+        "md"
+      ]
+    },
+    {
+      "id": "EVAL-003",
+      "title": "Financial insights from approved text data",
+      "persona_id": "analyst",
+      "task": "Analyze data and generate insights",
+      "job_role": "Finance analyst responsible for trend interpretation, forecast commentary, and risk notes.",
+      "additional_context": "Avoid unsupported forecasts and clearly separate observed results from projections.",
+      "grounding_mode": "style_and_factual",
+      "generation_style": "standard",
+      "style_sources": [
+        {
+          "name": "finance_style_guide.txt",
+          "document_type": "txt",
+          "content_excerpt": "Short paragraphs, executive tone, cautious numeric claims, and clear section headings.",
+          "purpose": "Style reference for executive-ready finance writing"
+        }
+      ],
+      "factual_sources": [
+        {
+          "name": "quarterly_metrics.txt",
+          "document_type": "txt",
+          "content_excerpt": "Revenue, churn, CAC, retention, and regional variance summary for the quarter.",
+          "purpose": "Approved facts for analysis"
+        }
+      ],
+      "coverage_tags": [
+        "txt",
+        "conflicting_sources",
+        "missing_evidence"
+      ]
+    },
+    {
+      "id": "EVAL-004",
+      "title": "Engineering recommendations with style-only grounding",
+      "persona_id": "engineer",
+      "task": "Provide expert recommendations",
+      "job_role": "Software engineer advising on code review findings, reliability gaps, and rollout recommendations.",
+      "additional_context": "Be explicit about operational risk, unsupported assumptions, and escalation to security review.",
+      "grounding_mode": "style_only",
+      "generation_style": "quality_helper_highest",
+      "style_sources": [
+        {
+          "name": "eng_review_style.txt",
+          "document_type": "txt",
+          "content_excerpt": "Use concise bullets, severity labels, and action-oriented recommendations.",
+          "purpose": "Style reference only; no factual claims should come from it"
+        }
+      ],
+      "factual_sources": [],
+      "coverage_tags": [
+        "out_of_scope",
+        "style_only",
+        "txt"
+      ]
+    },
+    {
+      "id": "EVAL-005",
+      "title": "Research summary with mixed document evidence",
+      "persona_id": "researcher",
+      "task": "Summarize complex documents",
+      "job_role": "Research lead synthesizing methodology notes, literature summaries, and evidence limitations.",
+      "additional_context": "Make uncertainty visible and distinguish peer-reviewed findings from working notes.",
+      "grounding_mode": "style_and_factual",
+      "generation_style": "standard",
+      "style_sources": [
+        {
+          "name": "research_brief_style.md",
+          "document_type": "md",
+          "content_excerpt": "Neutral register, evidence-first phrasing, and limitations section near the end.",
+          "purpose": "Style calibration for research summaries"
+        }
+      ],
+      "factual_sources": [
+        {
+          "name": "study_digest.pdf",
+          "document_type": "pdf",
+          "content_excerpt": "Findings table, sample-size notes, limitations, and contradictory replication results.",
+          "purpose": "Primary factual grounding for evidence synthesis"
+        }
+      ],
+      "coverage_tags": [
+        "conflicting_sources",
+        "pdf",
+        "md"
+      ]
+    },
+    {
+      "id": "EVAL-006",
+      "title": "Marketing email package with DOCX style guide",
+      "persona_id": "marketer",
+      "task": "Draft professional emails or letters",
+      "job_role": "Marketing strategist shaping launch messaging, audience tone, and brand-safe outbound email content.",
+      "additional_context": "Keep copy concise, customer-facing, and aligned to approved brand voice.",
+      "grounding_mode": "style_only",
+      "generation_style": "standard",
+      "style_sources": [
+        {
+          "name": "brand_voice.docx",
+          "document_type": "docx",
+          "content_excerpt": "Approved messaging pillars, phrase dos and don'ts, CTA tone, and formatting norms.",
+          "purpose": "Brand style reference"
+        }
+      ],
+      "factual_sources": [],
+      "coverage_tags": [
+        "docx",
+        "style_only"
+      ]
+    },
+    {
+      "id": "EVAL-007",
+      "title": "HR recommendation with privacy-sensitive source material",
+      "persona_id": "hr",
+      "task": "Provide expert recommendations",
+      "job_role": "HR professional preparing people-policy recommendations while protecting employee privacy.",
+      "additional_context": "Do not expose private employee details and escalate if the request crosses legal or compliance boundaries.",
+      "grounding_mode": "style_and_factual",
+      "generation_style": "quality_helper_balanced",
+      "style_sources": [
+        {
+          "name": "hr_tone_guide.docx",
+          "document_type": "docx",
+          "content_excerpt": "Empathetic tone, neutral language, and manager-ready recommendations.",
+          "purpose": "HR response style reference"
+        }
+      ],
+      "factual_sources": [
+        {
+          "name": "incident_summary.txt",
+          "document_type": "txt",
+          "content_excerpt": "Sanitized timeline, policy references, and unresolved evidence gaps.",
+          "purpose": "Approved incident facts for HR review"
+        }
+      ],
+      "coverage_tags": [
+        "privacy_sensitive",
+        "regulated_content",
+        "docx",
+        "txt"
+      ]
+    },
+    {
+      "id": "EVAL-008",
+      "title": "Custom persona and custom task with no grounding",
+      "persona_id": "custom",
+      "task": "Custom task...",
+      "custom_task_text": "Draft a board-ready vendor risk memo for a procurement steering committee.",
+      "job_role": "Vendor risk lead coordinating procurement, legal, and security reviewers for major software purchases.",
+      "additional_context": "Use plain business English and make all information gaps explicit before giving a recommendation.",
+      "grounding_mode": "none",
+      "generation_style": "standard",
+      "style_sources": [],
+      "factual_sources": [],
+      "coverage_tags": [
+        "custom_persona",
+        "custom_task",
+        "none"
+      ]
+    }
+  ]
+}

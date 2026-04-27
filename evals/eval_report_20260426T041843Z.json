@@ -1,0 +1,185 @@
+{
+  "title": "Prompt Studio comprehensive prompt-package evaluation set",
+  "generated_at": "2026-04-26T04:18:43.940912+00:00",
+  "model_name": "qwen2.5:latest",
+  "base_url": "http://localhost:11434",
+  "api_url": null,
+  "passed_count": 5,
+  "total_count": 8,
+  "results": [
+    {
+      "scenario_id": "EVAL-001",
+      "title": "Healthcare summary with factual PDF evidence",
+      "passed": true,
+      "score_pct": 100,
+      "expected_status": "draft",
+      "actual_status": "draft",
+      "validation_errors": [],
+      "missing_required_checks": [],
+      "missing_placeholders": [],
+      "generator_mode": "standard (repaired)",
+      "package_id": "af08789e-8045-4310-b26b-9337c7efb041",
+      "coverage_tags": [
+        "regulated_content",
+        "missing_evidence",
+        "pdf"
+      ]
+    },
+    {
+      "scenario_id": "EVAL-002",
+      "title": "Legal critique with markdown contract notes",
+      "passed": false,
+      "score_pct": 72,
+      "expected_status": "draft",
+      "actual_status": "draft",
+      "validation_errors": [],
+      "missing_required_checks": [
+        "Output contract present",
+        "Placeholder completeness",
+        "System prompt length \u2265 120 words"
+      ],
+      "missing_placeholders": [
+        "CONSTRAINTS",
+        "DELIVERABLE_FORMAT",
+        "INPUT_CONTENT",
+        "OUTPUT_AUDIENCE",
+        "TASK_GOAL"
+      ],
+      "generator_mode": "quality helper",
+      "package_id": "3ea5b256-10a2-4c06-a30c-cc9e3d0bd27b",
+      "coverage_tags": [
+        "regulated_content",
+        "out_of_scope",
+        "md"
+      ]
+    },
+    {
+      "scenario_id": "EVAL-003",
+      "title": "Financial insights from approved text data",
+      "passed": true,
+      "score_pct": 100,
+      "expected_status": "draft",
+      "actual_status": "draft",
+      "validation_errors": [],
+      "missing_required_checks": [],
+      "missing_placeholders": [],
+      "generator_mode": "standard (repaired)",
+      "package_id": "b12a611b-f694-4fc0-aac4-49ea766a4c0a",
+      "coverage_tags": [
+        "txt",
+        "conflicting_sources",
+        "missing_evidence"
+      ]
+    },
+    {
+      "scenario_id": "EVAL-004",
+      "title": "Engineering recommendations with style-only grounding",
+      "passed": false,
+      "score_pct": 72,
+      "expected_status": "draft",
+      "actual_status": "draft",
+      "validation_errors": [],
+      "missing_required_checks": [
+        "Output contract present",
+        "Placeholder completeness",
+        "System prompt length \u2265 120 words"
+      ],
+      "missing_placeholders": [
+        "CONSTRAINTS",
+        "DELIVERABLE_FORMAT",
+        "INPUT_CONTENT",
+        "OUTPUT_AUDIENCE",
+        "TASK_GOAL"
+      ],
+      "generator_mode": "quality helper",
+      "package_id": "5cf1d228-9ebf-44f9-8f6a-834f01b7d116",
+      "coverage_tags": [
+        "out_of_scope",
+        "style_only",
+        "txt"
+      ]
+    },
+    {
+      "scenario_id": "EVAL-005",
+      "title": "Research summary with mixed document evidence",
+      "passed": true,
+      "score_pct": 100,
+      "expected_status": "draft",
+      "actual_status": "draft",
+      "validation_errors": [],
+      "missing_required_checks": [],
+      "missing_placeholders": [],
+      "generator_mode": "standard (repaired)",
+      "package_id": "cac6b1f5-c9c0-411c-af58-5efa187ade8d",
+      "coverage_tags": [
+        "conflicting_sources",
+        "pdf",
+        "md"
+      ]
+    },
+    {
+      "scenario_id": "EVAL-006",
+      "title": "Marketing email package with DOCX style guide",
+      "passed": true,
+      "score_pct": 100,
+      "expected_status": "draft",
+      "actual_status": "draft",
+      "validation_errors": [],
+      "missing_required_checks": [],
+      "missing_placeholders": [],
+      "generator_mode": "standard (repaired)",
+      "package_id": "cc386c15-d343-485d-8be8-0b9e83425fdc",
+      "coverage_tags": [
+        "docx",
+        "style_only"
+      ]
+    },
+    {
+      "scenario_id": "EVAL-007",
+      "title": "HR recommendation with privacy-sensitive source material",
+      "passed": false,
+      "score_pct": 72,
+      "expected_status": "draft",
+      "actual_status": "draft",
+      "validation_errors": [],
+      "missing_required_checks": [
+        "Output contract present",
+        "Placeholder completeness",
+        "System prompt length \u2265 120 words"
+      ],
+      "missing_placeholders": [
+        "CONSTRAINTS",
+        "DELIVERABLE_FORMAT",
+        "INPUT_CONTENT",
+        "OUTPUT_AUDIENCE",
+        "TASK_GOAL"
+      ],
+      "generator_mode": "quality helper",
+      "package_id": "ec7ba24c-bacb-4b43-9f3a-1a07aa730fd7",
+      "coverage_tags": [
+        "privacy_sensitive",
+        "regulated_content",
+        "docx",
+        "txt"
+      ]
+    },
+    {
+      "scenario_id": "EVAL-008",
+      "title": "Custom persona and custom task with no grounding",
+      "passed": true,
+      "score_pct": 100,
+      "expected_status": "draft",
+      "actual_status": "draft",
+      "validation_errors": [],
+      "missing_required_checks": [],
+      "missing_placeholders": [],
+      "generator_mode": "standard (repaired)",
+      "package_id": "ca0959d4-94fc-465a-8297-74df525a44f1",
+      "coverage_tags": [
+        "custom_persona",
+        "custom_task",
+        "none"
+      ]
+    }
+  ]
+}
