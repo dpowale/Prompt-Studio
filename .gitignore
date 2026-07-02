@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.benchmarks/
+
+# Prompt Studio runtime artifacts
+prompt_library.json
+prompt_engineer_compiled_v2.json
+prompt_engineer_compiled_v2.meta.json
+evals/results/
