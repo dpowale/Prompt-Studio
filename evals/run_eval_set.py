@@ -8,8 +8,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import requests
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -201,7 +199,6 @@ def run_eval_set(
     eval_set_path: Path | str = DEFAULT_EVAL_SET_PATH,
     model_name: str = "qwen2.5:latest",
     base_url: str = "http://localhost:11434",
-    api_url: str | None = None,
     output_dir: Path | str = DEFAULT_OUTPUT_DIR,
 ) -> dict[str, Any]:
     eval_set = load_eval_set(eval_set_path)
@@ -217,33 +214,7 @@ def run_eval_set(
             version_number=index,
             approval_status=defaults.get("expected_status", "draft"),
         )
-        if api_url:
-            response = requests.post(
-                f"{api_url.rstrip('/')}/generate-package",
-                json={
-                    "persona": payload["final_persona"],
-                    "job_role": payload["job_role"],
-                    "task": payload["final_task"],
-                    "additional_context": payload["additional_context"],
-                    "style_brief": payload["style_brief"],
-                    "factual_brief": payload["factual_brief"],
-                    "style_sources": payload["style_sources"],
-                    "factual_sources": payload["factual_sources"],
-                    "model_name": payload["model_name"],
-                    "base_url": payload["base_url"],
-                    "use_quality_helper": payload["use_quality_helper"],
-                    "quality_method": payload["quality_method"],
-                    "version_number": payload["version_number"],
-                    "approval_status": payload["approval_status"],
-                },
-                timeout=180,
-            )
-            response.raise_for_status()
-            body = response.json()
-            package = body.get("package", {})
-            validation_errors = body.get("validation_errors", [])
-        else:
-            package, validation_errors = generate_prompt_package(**payload)
+        package, validation_errors = generate_prompt_package(**payload)
         results.append(evaluate_scenario_result(scenario, package, validation_errors, defaults))
 
     passed_count = sum(1 for result in results if result.get("passed"))
@@ -252,7 +223,6 @@ def run_eval_set(
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "model_name": model_name,
         "base_url": base_url,
-        "api_url": api_url,
         "passed_count": passed_count,
         "total_count": len(results),
         "results": results,
@@ -279,7 +249,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--eval-set", default=str(DEFAULT_EVAL_SET_PATH), help="Path to the eval set JSON file.")
     parser.add_argument("--model-name", default="qwen2.5:latest", help="Model name to use for generation.")
     parser.add_argument("--base-url", default="http://localhost:11434", help="Base URL for the underlying generation backend.")
-    parser.add_argument("--api-url", default=None, help="Optional Prompt Studio API base URL. If set, scenarios are sent to /generate-package.")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Directory for JSON, CSV, and Markdown reports.")
     return parser
 
@@ -291,7 +260,6 @@ def main() -> None:
         eval_set_path=args.eval_set,
         model_name=args.model_name,
         base_url=args.base_url,
-        api_url=args.api_url,
         output_dir=args.output_dir,
     )
     print(json.dumps({

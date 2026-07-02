@@ -1,31 +1,31 @@
 THEME_PRESETS = {
   "Dark": {
-    "page_bg": "#0a0f19",
-    "panel_bg": "#101726",
-    "panel_bg_2": "#131c2e",
-    "text": "#ffffff",
-    "muted": "#8a94ab",
-    "border": "#243049",
-    "accent": "#6d7cff",
-    "accent_2": "#a855f7",
-    "accent_soft": "rgba(109,124,255,0.14)",
-    "success": "#4ade80",
-    "warning": "#d39b3b",
-    "shadow": "0 12px 30px rgba(0, 0, 0, 0.18)",
+    "page_bg": "#0f1720",
+    "panel_bg": "#131d28",
+    "panel_bg_2": "#182433",
+    "text": "#edf2f7",
+    "muted": "#9aa7b7",
+    "border": "#2a384a",
+    "accent": "#2563eb",
+    "accent_2": "#1d4ed8",
+    "accent_soft": "rgba(37,99,235,0.14)",
+    "success": "#34d399",
+    "warning": "#f59e0b",
+    "shadow": "0 14px 36px rgba(0, 0, 0, 0.24)",
   },
   "Light": {
-    "page_bg": "#f5f7fb",
+    "page_bg": "#f4f7fb",
     "panel_bg": "#ffffff",
-    "panel_bg_2": "#eef3fb",
-    "text": "#132238",
-    "muted": "#5f6f86",
-    "border": "#d9e3f0",
-    "accent": "#3c63ff",
-    "accent_2": "#6b3df0",
-    "accent_soft": "rgba(60,99,255,0.12)",
-    "success": "#1e8f5a",
-    "warning": "#b57a14",
-    "shadow": "0 12px 30px rgba(15, 23, 42, 0.08)",
+    "panel_bg_2": "#eef3f9",
+    "text": "#17212b",
+    "muted": "#617284",
+    "border": "#d6deea",
+    "accent": "#2563eb",
+    "accent_2": "#1d4ed8",
+    "accent_soft": "rgba(37,99,235,0.10)",
+    "success": "#15803d",
+    "warning": "#b45309",
+    "shadow": "0 12px 30px rgba(15, 23, 42, 0.10)",
   },
 }
 
@@ -46,11 +46,33 @@ def theme_css(mode: str) -> str:
         --success-color: {t['success']};
         --warning-color: {t['warning']};
         --shadow-color: {t['shadow']};
+        --body-font: "Segoe UI", "Aptos", "Helvetica Neue", sans-serif;
+        --display-font: "Segoe UI", "Aptos", "Helvetica Neue", sans-serif;
+        --radius-lg: 22px;
+        --radius-md: 16px;
+      }}
+
+      html, body, [class*="css"]  {{
+        font-family: var(--body-font);
       }}
       
       /* Essential Streamlit Overrides to fix 'white on white' bugs */
       .stApp, .stApp > header {{
-        background-color: var(--page-bg) !important;
+        background:
+          radial-gradient(circle at top left, rgba(37,99,235,0.06), transparent 26%),
+          radial-gradient(circle at top right, rgba(15,23,42,0.05), transparent 20%),
+          linear-gradient(180deg, var(--page-bg) 0%, var(--page-bg) 100%) !important;
+      }}
+
+      .block-container {{
+        max-width: 1180px;
+        padding-top: 1.5rem;
+        padding-bottom: 2.5rem;
+      }}
+
+      h1, h2, h3, .hero-title, .section-title, .score-title {{
+        font-family: var(--display-font);
+        letter-spacing: -0.02em;
       }}
       
       [data-testid="stMarkdownContainer"] p,
@@ -65,13 +87,24 @@ def theme_css(mode: str) -> str:
       }}
       
       [data-testid="stSidebar"], [data-testid="stSidebarContent"] {{
-        background-color: var(--panel-bg) !important;
+        background:
+          linear-gradient(180deg, var(--panel-bg) 0%, var(--panel-bg-2) 100%) !important;
         border-right: 1px solid var(--border-color) !important;
+      }}
+
+      [data-testid="stSidebar"] .block-container {{
+        padding-top: 1.15rem;
       }}
 
       /* Widget Labels */
       small, .stCaption, [data-testid="stWidgetLabel"] p {{
         color: var(--text-color) !important;
+      }}
+
+      [data-testid="stWidgetLabel"] p {{
+        font-size: 1rem !important;
+        line-height: 1.5 !important;
+        font-weight: 600 !important;
       }}
       
       /* Input elements */
@@ -89,7 +122,24 @@ def theme_css(mode: str) -> str:
         background-color: var(--panel-bg-2) !important;
         color: var(--text-color) !important;
         border-color: var(--border-color) !important;
-        color-scheme: dark;
+        border-radius: 14px !important;
+      }}
+
+      [data-testid="stSelectbox"] label,
+      [data-testid="stSelectbox"] [data-baseweb="select"] span,
+      [data-testid="stSelectbox"] [data-baseweb="select"] div {{
+        font-size: 1.02rem !important;
+        line-height: 1.45 !important;
+      }}
+
+      .stTextInput input,
+      .stTextArea textarea {{
+        min-height: 3rem;
+      }}
+
+      .stTextArea textarea {{
+        font-size: 1rem !important;
+        line-height: 1.55;
       }}
       
       /* Dropdowns / Menus */
@@ -119,6 +169,15 @@ def theme_css(mode: str) -> str:
         background-color: var(--panel-bg-2) !important;
         color: var(--text-color) !important;
         border-color: var(--border-color) !important;
+        border-radius: 999px !important;
+        font-weight: 600 !important;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease !important;
+      }}
+
+      .stButton button:hover,
+      .stDownloadButton button:hover {{
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-color);
       }}
 
       /* Primary Button */
@@ -126,21 +185,36 @@ def theme_css(mode: str) -> str:
       [data-testid="baseButton-primary"] *,
       button[kind="primary"],
       button[kind="primary"] * {{
-        background-color: var(--accent-color) !important;
+        background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-2) 100%) !important;
         color: #ffffff !important;
         border: none !important;
+        box-shadow: 0 12px 22px rgba(15, 118, 110, 0.24) !important;
       }}
       
       /* UI Elements */
       div[data-testid="stMetric"], .stExpander > details {{
         background-color: var(--panel-bg) !important;
         border: 1px solid var(--border-color) !important;
-        border-radius: 8px !important;
+        border-radius: var(--radius-md) !important;
+        box-shadow: var(--shadow-color);
+      }}
+
+      .stExpander > details:hover,
+      div[data-testid="stMetric"]:hover {{
+        border-color: var(--accent-color) !important;
       }}
       
       /* Checkbox & radio text */
       [data-testid="stRadio"] label span, [data-testid="stCheckbox"] label span {{
         color: var(--text-color) !important;
+      }}
+
+      /* Toggle (e.g. DSPy): show green when ON instead of Streamlit's default red */
+      [data-testid="stCheckbox"] label:has(input[aria-checked="true"]) > div:first-of-type,
+      [data-testid="stCheckbox"] [role="switch"][aria-checked="true"],
+      [data-testid="stCheckbox"] [aria-checked="true"] {{
+        background-color: var(--success-color) !important;
+        border-color: var(--success-color) !important;
       }}
       
       /* Alert Text */
@@ -154,12 +228,26 @@ def theme_css(mode: str) -> str:
       }}
 
       .hero-shell {{
-        background: linear-gradient(135deg, var(--panel-bg) 0%, var(--panel-bg-2) 100%);
+        position: relative;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at top right, rgba(37,99,235,0.10), transparent 28%),
+          linear-gradient(135deg, var(--panel-bg) 0%, var(--panel-bg-2) 100%);
         border: 1px solid var(--border-color);
-        border-radius: 20px;
+        border-radius: var(--radius-lg);
         box-shadow: var(--shadow-color);
-        padding: 1.4rem 1.5rem;
-        margin: 0.4rem 0 1rem;
+        padding: 1.7rem 1.7rem 1.5rem;
+        margin: 0.4rem 0 1.15rem;
+      }}
+
+      .hero-shell::after {{
+        content: "";
+        position: absolute;
+        inset: auto -10% -35% auto;
+        width: 280px;
+        height: 280px;
+        background: radial-gradient(circle, rgba(37,99,235,0.12), transparent 62%);
+        pointer-events: none;
       }}
 
       .hero-eyebrow {{
@@ -173,22 +261,54 @@ def theme_css(mode: str) -> str:
 
       .hero-title {{
         color: var(--text-color);
-        font-size: 2.1rem;
+        font-size: 2.35rem;
         font-weight: 700;
-        margin: 0 0 0.3rem;
+        line-height: 1.08;
+        max-width: 14ch;
+        margin: 0 0 0.45rem;
       }}
 
       .hero-subtitle {{
         color: var(--muted-color);
-        font-size: 1rem;
-        line-height: 1.6;
-        margin: 0 0 1rem;
+        font-size: 1.02rem;
+        line-height: 1.65;
+        margin: 0;
+        max-width: none;
+        white-space: nowrap;
       }}
 
       .chip-row {{
         display: flex;
         flex-wrap: wrap;
         gap: 0.55rem;
+      }}
+
+      .hero-metrics {{
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.8rem;
+        margin-top: 1.15rem;
+      }}
+
+      .hero-metric {{
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        padding: 0.95rem 1rem;
+        backdrop-filter: blur(6px);
+      }}
+
+      .hero-metric-value {{
+        color: var(--text-color);
+        font-size: 1.2rem;
+        font-weight: 800;
+        margin-bottom: 0.18rem;
+      }}
+
+      .hero-metric-label {{
+        color: var(--muted-color);
+        font-size: 0.84rem;
+        line-height: 1.45;
       }}
 
       .chip {{
@@ -207,10 +327,10 @@ def theme_css(mode: str) -> str:
       .section-card {{
         background: var(--panel-bg);
         border: 1px solid var(--border-color);
-        border-radius: 16px;
-        padding: 1rem 1.1rem;
+        border-radius: var(--radius-md);
+        padding: 1.05rem 1.15rem;
         box-shadow: var(--shadow-color);
-        margin-bottom: 0.9rem;
+        margin-bottom: 1rem;
       }}
 
       .section-kicker {{
@@ -244,15 +364,18 @@ def theme_css(mode: str) -> str:
       }}
 
       .step-card {{
-        border-radius: 16px;
+        border-radius: var(--radius-md);
         border: 1px solid var(--border-color);
         background: var(--panel-bg);
         padding: 0.95rem 1rem;
+        min-height: 120px;
+        box-shadow: var(--shadow-color);
       }}
 
       .step-card.active {{
         background: linear-gradient(135deg, var(--accent-soft) 0%, var(--panel-bg) 100%);
         border-color: var(--accent-color);
+        box-shadow: 0 10px 24px rgba(37, 99, 235, 0.10);
       }}
 
       .step-card.done {{
@@ -261,23 +384,25 @@ def theme_css(mode: str) -> str:
 
       .step-label {{
         color: var(--muted-color);
-        font-size: 0.76rem;
+        font-size: 0.92rem;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        margin-bottom: 0.28rem;
+        margin-bottom: 0.4rem;
+        line-height: 1.45;
       }}
 
       .step-name {{
         color: var(--text-color);
-        font-size: 1rem;
+        font-size: 1.16rem;
         font-weight: 700;
-        margin-bottom: 0.15rem;
+        margin-bottom: 0.28rem;
+        line-height: 1.35;
       }}
 
       .step-note {{
         color: var(--muted-color);
-        font-size: 0.88rem;
-        line-height: 1.45;
+        font-size: 1rem;
+        line-height: 1.6;
       }}
 
       .step-status {{
@@ -286,11 +411,12 @@ def theme_css(mode: str) -> str:
       }}
 
       .helper-card {{
-        background: linear-gradient(180deg, var(--panel-bg) 0%, var(--panel-bg-2) 100%);
-        border: 1px dashed var(--border-color);
-        border-radius: 14px;
+        background: var(--panel-bg);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
         padding: 0.95rem 1rem;
         margin: 0.35rem 0 0.8rem;
+        box-shadow: var(--shadow-color);
       }}
 
       .helper-title {{
@@ -316,8 +442,9 @@ def theme_css(mode: str) -> str:
       .mini-card {{
         background: var(--panel-bg);
         border: 1px solid var(--border-color);
-        border-radius: 14px;
+        border-radius: var(--radius-md);
         padding: 0.9rem 1rem;
+        box-shadow: var(--shadow-color);
       }}
 
       .mini-label {{
@@ -336,11 +463,12 @@ def theme_css(mode: str) -> str:
       }}
 
       .score-shell {{
-        background: linear-gradient(135deg, var(--panel-bg) 0%, var(--panel-bg-2) 100%);
+        background: var(--panel-bg);
         border: 1px solid var(--border-color);
-        border-radius: 20px;
+        border-radius: var(--radius-lg);
         padding: 1.15rem 1.25rem;
         margin: 0.4rem 0 1rem;
+        box-shadow: var(--shadow-color);
       }}
 
       .score-topline {{
@@ -393,7 +521,7 @@ def theme_css(mode: str) -> str:
       .history-card {{
         background: var(--panel-bg);
         border: 1px solid var(--border-color);
-        border-radius: 14px;
+        border-radius: var(--radius-md);
         padding: 0.9rem 1rem;
         margin-bottom: 0.8rem;
       }}
@@ -416,13 +544,29 @@ def theme_css(mode: str) -> str:
       [data-testid="stTabs"] [role="tab"] {{
         background: var(--panel-bg) !important;
         border: 1px solid var(--border-color) !important;
-        border-radius: 10px 10px 0 0 !important;
+        border-radius: 14px 14px 0 0 !important;
         padding: 0.55rem 0.9rem !important;
       }}
 
       [data-testid="stTabs"] [aria-selected="true"] {{
         background: var(--accent-soft) !important;
         border-color: var(--accent-color) !important;
+      }}
+
+      @media (max-width: 900px) {{
+        .hero-title {{
+          font-size: 2rem;
+          max-width: none;
+        }}
+
+        .hero-subtitle {{
+          white-space: normal;
+        }}
+
+        .hero-metrics,
+        .mini-grid {{
+          grid-template-columns: 1fr;
+        }}
       }}
 
     </style>

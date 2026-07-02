@@ -94,7 +94,7 @@ def extract_prompt_package(raw: str) -> tuple[dict, list[str]]:
 
 def _valid_system_prompt(value: str) -> bool:
     text = str(value or "").strip()
-    return text.startswith("You are") and len(text.split()) >= 120
+    return text.startswith("You are") and len(text.split()) >= 80
 
 def _valid_user_prompt_template(value: str) -> bool:
     text = str(value or "").strip()
@@ -208,8 +208,8 @@ def validate_prompt_package(package: dict) -> list[str]:
     system_prompt = str(package.get("system_prompt", "") or "").strip()
     if not system_prompt.startswith("You are"):
         errors.append("`system_prompt` must start with 'You are'.")
-    if len(system_prompt.split()) < 120:
-        errors.append("`system_prompt` must contain at least 120 words for commercial-grade instruction coverage.")
+    if len(system_prompt.split()) < 80:
+        errors.append("`system_prompt` must contain at least 80 words to cover role, grounding, and escalation behavior.")
 
     user_prompt_template = str(package.get("user_prompt_template", "") or "").strip()
     placeholder_matches = re.findall(r"\[([A-Z0-9_]+)\]", user_prompt_template)
@@ -298,9 +298,9 @@ def evaluate_prompt_package(package: dict) -> dict:
             "detail": "Commercial packages should declare role and scope immediately.",
         },
         {
-            "label": "System prompt length ≥ 120 words",
-            "passed": len(system_prompt.split()) >= 120,
-            "detail": f"{len(system_prompt.split())} words.",
+            "label": "System prompt length in 80–180 words",
+            "passed": 80 <= len(system_prompt.split()) <= 180,
+            "detail": f"{len(system_prompt.split())} words (target 80–180; concise is better).",
         },
         {
             "label": "Behavioral constraints present",

@@ -33,25 +33,24 @@ def build_system_prompt(
     factual_brief: str,
 ) -> str:
     role_scope = job_role.strip().rstrip(".") or f"the professional standards of a {final_persona}"
-    context_clause = f" Additional business constraints: {additional_context.strip()}" if _clean(additional_context) else ""
+    context_clause = f" Constraints: {additional_context.strip()}" if _clean(additional_context) else ""
     style_clause = (
-        "Use approved style guidance and uploaded style references only to shape tone, terminology, and document structure."
+        "Use the provided style references only to shape tone, terminology, and structure."
         if style_brief
-        else "No style references were supplied, so default to clear, formal, commercially appropriate language for the stated persona."
+        else "With no style references, default to clear, professional language."
     )
     factual_clause = (
-        "Use only user-provided facts and approved factual reference sources labeled as [SOURCE_ID]. When evidence is insufficient or conflicting, state that explicitly instead of inferring unsupported facts."
+        "Use only user-provided facts and [SOURCE_ID] references; when evidence is insufficient or conflicting, say so instead of inferring."
         if factual_brief
-        else "Operate only on user-provided facts. If the request requires evidence that is not present, state the gap plainly and ask for the missing material."
+        else "Operate only on user-provided facts; if needed evidence is missing, state the gap and ask for it."
     )
     return (
-        f"You are a Senior Prompt Architect designing production-ready prompts for a {final_persona}. Your scope is to translate the working norms of {role_scope} into prompts that are safe for commercial use while helping the downstream model {final_task.lower()}. "
-        "You must encode role boundaries, accepted evidence standards, output structure, uncertainty handling, and escalation rules directly into the prompt package. "
+        f"You are a Senior Prompt Architect writing a production-ready prompt for a {final_persona} working as {role_scope}, to help the downstream model {final_task.lower()}. "
         f"{style_clause} {factual_clause} "
-        "Always require the downstream model to cite factual claims to [SOURCE_ID] references when such sources are available, separate facts from assumptions, and surface any ambiguity, missing evidence, policy risk, or compliance concern before giving a conclusion. "
-        "Never fabricate authorities, customer data, metrics, or domain conclusions. Never present legal, medical, financial, HR, or security guidance as definitive if the request is outside scope, missing evidence, or requires licensed review. "
-        "If the request touches regulated advice, personal data, contractual commitments, safety-critical decisions, or unsupported claims, instruct the downstream model to pause, flag the risk, and recommend escalation to a qualified human reviewer. "
-        "Require an output contract with labeled sections, concise reasoning, and a final checklist confirming grounding, compliance, and unresolved risks."
+        "Require the model to cite factual claims to [SOURCE_ID] references when sources exist, separate facts from assumptions, and flag missing evidence, ambiguity, or compliance risk before concluding. "
+        "Never fabricate authorities, data, metrics, or conclusions, and never present regulated legal, medical, financial, HR, or security guidance as definitive when it is out of scope or needs licensed review. "
+        "If the request involves regulated advice, personal data, binding commitments, or safety-critical decisions, instruct the model to pause, flag the risk, and escalate to a qualified human. "
+        "Close with a short labeled output contract and a checklist confirming grounding, compliance, and open risks."
         f"{context_clause}"
     )
 
@@ -66,22 +65,17 @@ def build_user_prompt(
 ) -> str:
     role_scope = job_role.strip().rstrip(".") or final_persona
     lines = [
-        f"Act as a {final_persona} operating within this role context: {role_scope}.",
-        f"Primary objective: {final_task}.",
-        "Use these inputs: [TASK_GOAL], [INPUT_CONTENT], [CONSTRAINTS], [OUTPUT_AUDIENCE], and [DELIVERABLE_FORMAT].",
-        "If style guidance is available, use [STYLE_GUIDE] to mirror terminology, cadence, formatting, and brand voice without copying source text verbatim.",
-        "If factual sources are available, use [FACTUAL_SOURCES], [FACT_SOURCE_1], [FACT_SOURCE_2], and additional [SOURCE_ID] references as the only grounds for factual claims.",
+        f"Act as a {final_persona} ({role_scope}).",
+        f"Objective: {final_task}.",
+        "Inputs: [TASK_GOAL], [INPUT_CONTENT], [CONSTRAINTS], [OUTPUT_AUDIENCE], [DELIVERABLE_FORMAT].",
+        "If available, use [STYLE_GUIDE] for tone and [FACTUAL_SOURCES] / [SOURCE_ID] references as the only basis for factual claims; label assumptions as assumptions.",
     ]
     if _clean(additional_context):
-        lines.append(f"Business constraints already supplied: {additional_context.strip()}")
-    if style_brief:
-        lines.append("Style grounding is available and should influence tone, heading structure, and vocabulary choice.")
-    if factual_brief:
-        lines.append("Factual grounding is available; cite factual statements inline as [SOURCE_ID] and explicitly label assumptions as assumptions.")
+        lines.append(f"Constraints: {additional_context.strip()}")
     lines.extend(
         [
-            "Provide: (1) a brief objective restatement, (2) a grounded deliverable that follows [DELIVERABLE_FORMAT], (3) a section called Risks and Uncertainties, (4) a section called Source Attribution listing the [SOURCE_ID] items used, and (5) a section called Escalation Needed if any requested action exceeds the available evidence or professional scope.",
-            "Do not invent data, citations, policies, precedents, or customer-specific facts. If required inputs are missing, say exactly what is missing before continuing.",
+            "Provide: (1) a one-line objective restatement, (2) the deliverable in [DELIVERABLE_FORMAT], (3) Risks and Uncertainties, (4) Source Attribution listing the [SOURCE_ID] items used, (5) Escalation Needed if the request exceeds the evidence or your scope.",
+            "Do not invent data, citations, or facts; if required inputs are missing, state what is missing before continuing.",
         ]
     )
     return "\n".join(lines).strip()

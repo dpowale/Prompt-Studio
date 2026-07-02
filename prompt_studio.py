@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import html
 import json
 import os
@@ -18,6 +19,7 @@ except ImportError:
 from core.fallback_builder import PROMPT_PACKAGE_VERSION, build_fallback_result
 from core.grounding import MAX_GROUNDING_DOCUMENTS, SUPPORTED_UPLOAD_TYPES, build_grounding_brief, extract_grounding_documents
 from core.llm_api import fetch_ollama_models
+from core.prompt_library import count_prompts as count_library_prompts, list_prompts as list_library_prompts, save_package_to_library
 from core.utils import evaluate_prompt_package, extract_prompt_package, finalize_prompt_package, merge_prompt_package, validate_prompt_package
 from ui.components import copy_button_html
 from ui.theme import THEME_PRESETS, theme_css
@@ -29,14 +31,14 @@ if DSPY_AVAILABLE:
 st.set_page_config(page_title="Prompt Studio", page_icon="✦", layout="wide", initial_sidebar_state="expanded")
 
 PERSONAS = {
-    "⚕️ Healthcare Expert (Doctor/Clinician)": ("doctor", "Healthcare"),
-    "⚖️ Legal Professional (Attorney/Counsel)": ("lawyer", "Legal"),
-    "📊 Financial Analyst": ("analyst", "Finance"),
-    "💻 IT Professional (Software Engineer)": ("engineer", "Technology"),
-    "🔬 Researcher": ("researcher", "Research"),
-    "📣 Marketing Strategist": ("marketer", "Marketing"),
-    "🤝 HR Professional": ("hr", "Human Resources"),
-    "✏️ Write Your Own (Custom)": ("custom", "Custom"),
+    "Healthcare Expert (Doctor/Clinician)": ("doctor", "Healthcare"),
+    "Legal Professional (Attorney/Counsel)": ("lawyer", "Legal"),
+    "Financial Analyst": ("analyst", "Finance"),
+    "IT Professional (Software Engineer)": ("engineer", "Technology"),
+    "Researcher": ("researcher", "Research"),
+    "Marketing Strategist": ("marketer", "Marketing"),
+    "HR Professional": ("hr", "Human Resources"),
+    "Write Your Own (Custom)": ("custom", "Custom"),
 }
 
 TASKS = [
@@ -61,11 +63,54 @@ def init_session_state() -> None:
         "factual_reference_notes": "",
         "style_source_catalog": [],
         "factual_source_catalog": [],
+        "style_upload_signature": "",
+        "factual_upload_signature": "",
         "approval_status": "draft",
         "load_ver": 0,
+        "dspy_mode": DSPY_AVAILABLE,
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def fetch_cached_ollama_models(base_url: str) -> list[str]:
+    return fetch_ollama_models(base_url)
+
+
+@st.cache_data(show_spinner=False)
+def extract_cached_grounding_documents(file_payloads: tuple[tuple[str, bytes], ...], kind: str) -> list[dict]:
+    class UploadedFileShim:
+        def __init__(self, name: str, data: bytes):
+            self.name = name
+            self._data = data
+
+        def getvalue(self):
+            return self._data
+
+    uploads = [UploadedFileShim(name, data) for name, data in file_payloads]
+    return extract_grounding_documents(uploads, kind)
+
+
+def build_upload_signature(uploaded_files) -> str:
+    if not uploaded_files:
+        return ""
+
+    digest = hashlib.sha256()
+    for uploaded_file in uploaded_files:
+        name = getattr(uploaded_file, "name", "unnamed")
+        data = uploaded_file.getvalue()
+        digest.update(name.encode("utf-8", errors="ignore"))
+        digest.update(b"\0")
+        digest.update(data)
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def build_file_payloads(uploaded_files) -> tuple[tuple[str, bytes], ...]:
+    if not uploaded_files:
+        return tuple()
+    return tuple((getattr(uploaded_file, "name", "unnamed"), uploaded_file.getvalue()) for uploaded_file in uploaded_files)
 
 
 def render_source_catalog(title: str, sources: list[dict]) -> None:
@@ -100,12 +145,12 @@ Now generate a new commercial-grade prompt package for these inputs:
 - Factual grounding brief: {factual_brief or 'None provided'}
 
 Requirements:
-1. `system_prompt` must start with "You are" and cover role scope, accepted data sources, grounding rules, uncertainty handling, compliance constraints, refusal triggers, red-team checks, and escalation triggers.
+1. `system_prompt` must start with "You are" and concisely set role scope, accepted data sources, grounding rules, uncertainty handling, and the key refusal/escalation triggers — only what changes the model's behavior.
 2. `user_prompt_template` must include semantically named placeholders such as [TASK_GOAL], [INPUT_CONTENT], [CONSTRAINTS], [OUTPUT_AUDIENCE], [DELIVERABLE_FORMAT], [STYLE_GUIDE], [FACTUAL_SOURCES], and [FACT_SOURCE_1] where relevant.
 3. When factual grounding is present, require inline source attribution using [SOURCE_ID] tokens and separate verified facts from assumptions.
 4. Keep `input_schema`, `output_schema`, `safety_policy`, `escalation_policy`, `acceptance_tests`, and `metadata` as JSON objects or arrays, not strings.
 5. Never fabricate citations, policies, legal conclusions, medical advice, financial claims, or customer-specific facts.
-6. The package must be safe for commercial use and auditable by a human reviewer.
+6. Be concise and specific: plain language, no filler, hedging, or repetition. Aim for roughly 90–150 words in `system_prompt` and 60–120 in `user_prompt_template`, and keep the package auditable by a human reviewer.
 """.strip()
 
 
@@ -127,7 +172,7 @@ Repair rules:
 2. Add any missing fields from the template package.
 3. Keep `input_schema`, `output_schema`, `safety_policy`, `escalation_policy`, `acceptance_tests`, and `metadata` as JSON objects or arrays, never as strings.
 4. Ensure `user_prompt_template` contains at least 5 semantically named placeholders and an inline output contract beginning with `Provide:` or `(1)`.
-5. Ensure `system_prompt` starts with `You are` and remains at least 120 words.
+5. Ensure `system_prompt` starts with `You are`, stays at least 80 words, and is concise (no filler or repetition).
 6. Ensure all factual-grounding rules use `[SOURCE_ID]` notation.
 """.strip()
 
@@ -158,39 +203,6 @@ def ensure_dspy_helper_trained(model_name: str, base_url: str, force: bool = Fal
     )
     compile_dspy_module(lm)
     return "trained"
-
-
-def build_api_request_example(package: dict) -> dict:
-    metadata = package.get("metadata", {})
-    style_source_count = int(metadata.get("style_source_count", 0) or 0)
-    factual_source_count = int(metadata.get("factual_source_count", 0) or 0)
-    return {
-        "persona": metadata.get("persona", "Custom Persona"),
-        "job_role": package.get("persona_analysis", ""),
-        "task": metadata.get("task", "Custom task"),
-        "additional_context": "",
-        "style_brief": package.get("grounding_strategy", ""),
-        "factual_brief": package.get("grounding_strategy", ""),
-        "style_sources": [{"name": f"style_source_{idx + 1}.txt"} for idx in range(style_source_count)],
-        "factual_sources": [{"name": f"factual_source_{idx + 1}.txt"} for idx in range(factual_source_count)],
-        "model_name": metadata.get("model_name", st.session_state.get("ollama_selected_model", "llama3.1:latest")),
-        "base_url": metadata.get("ollama_base_url", st.session_state.get("ollama_base_url", "http://localhost:11434")),
-        "use_quality_helper": package.get("metadata", {}).get("settings", {}).get("quality_helper_enabled", False),
-        "quality_method": "BestOfN" if package.get("metadata", {}).get("settings", {}).get("quality_mode") == "highest" else "ChainOfThought",
-    }
-
-
-def build_api_snippets(package: dict) -> tuple[str, str, str]:
-    request_payload = build_api_request_example(package)
-    request_json = json.dumps(request_payload, indent=2)
-    curl_snippet = (
-        'curl -X POST "http://127.0.0.1:8000/generate-package" '
-        '-H "Content-Type: application/json" '
-        f"-d '{json.dumps(request_payload)}'"
-    )
-    python_snippet = f"""import requests\n\npayload = {request_json}\nresponse = requests.post(\"http://127.0.0.1:8000/generate-package\", json=payload, timeout=120)\nresponse.raise_for_status()\npackage = response.json()[\"package\"]\npackage"""
-    server_snippet = "uvicorn api_server:app --host 127.0.0.1 --port 8000"
-    return server_snippet, curl_snippet, python_snippet
 
 
 def prepare_metadata(final_persona: str, final_task: str, model_name: str, base_url: str, generator_mode: str, style_sources: list[dict], factual_sources: list[dict]) -> dict:
@@ -236,19 +248,46 @@ def sync_approval_status(selected_status: str) -> None:
         st.session_state["prompt_history"] = history
 
 
+WIZARD_INPUT_KEYS = (
+    "persona_choice",
+    "custom_persona_name",
+    "job_role",
+    "task_choice",
+    "custom_task",
+    "additional_context",
+    "style_guide_notes",
+    "factual_reference_notes",
+    "style_source_catalog",
+    "factual_source_catalog",
+    "style_upload_signature",
+    "factual_upload_signature",
+    "prompt_package",
+    "validation_errors",
+    "approval_status",
+)
+
+
+def reset_for_new_prompt(*, clear_history: bool = False) -> None:
+    """Clear wizard inputs and the current result so the user can build a fresh prompt.
+
+    Keeps app-level settings (theme, model, Ollama URL), the saved prompt library, and
+    — unless ``clear_history`` is set — the in-session package history. Bumping
+    ``load_ver`` resets the keyed input widgets back to their defaults.
+    """
+    for key in WIZARD_INPUT_KEYS:
+        st.session_state.pop(key, None)
+    if clear_history:
+        st.session_state["prompt_history"] = []
+    st.session_state["current_step"] = 1
+    st.session_state["load_ver"] = st.session_state.get("load_ver", 0) + 1
+
+
 def render_hero_section() -> None:
         st.markdown(
                 """
                 <div class='hero-shell'>
-                    <div class='hero-eyebrow'>Prompt Studio</div>
-                    <div class='hero-title'>Turn expert knowledge to AI prompts</div>
-                    <div class='hero-subtitle'>Turn expert tasks into structured prompts with validation, grounding, and reusable package history — all from one guided workflow.</div>
-                    <div class='chip-row'>
-                        <span class='chip'>✦ Runs locally</span>
-                        <span class='chip'>✓ Quality-checked prompts</span>
-                        <span class='chip'>🗂️ Style + Grounding references</span>
-                        <span class='chip'>💾 Save and reuse prompts</span>
-                    </div>
+                    <div class='hero-title'>Prompt Studio</div>
+                    <div class='hero-subtitle'>Build grounded prompt packages with auditable structure, source-aware instructions, and reusable governance metadata</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -310,21 +349,22 @@ def render_mini_cards(items: list[tuple[str, str]]) -> None:
         with column:
             with st.container(border=True):
                 st.caption(label.upper())
-                st.markdown(f"**{value}**")
+                st.markdown(f"**{html.escape(value)}**")
 
 
 def render_score_card(evaluation: dict) -> None:
     passed = int(evaluation.get("passed", 0) or 0)
     total = int(evaluation.get("total", 0) or 0)
     score_pct = int(evaluation.get("score_pct", 0) or 0)
+    bounded_score = max(0, min(score_pct, 100))
     with st.container(border=True):
         left_col, right_col = st.columns([4, 1])
         with left_col:
-            st.markdown("### 📊 Readiness score")
+            st.markdown("### Readiness Score")
             st.caption(f"Passed {passed}/{total} validation checks across structure, grounding, and safety.")
         with right_col:
-            st.metric("Score", f"{score_pct}%")
-        st.progress(max(0, min(score_pct, 100)) / 100)
+            st.metric("Score", f"{bounded_score}%")
+        st.progress(bounded_score / 100)
 
 
 init_session_state()
@@ -348,12 +388,17 @@ with st.sidebar:
     st.session_state["theme_mode"] = theme_mode
 
     st.markdown("---")
-    with st.expander("⚙️ Advanced AI Options", expanded=False):
+    if st.button("➕ Start New Prompt", use_container_width=True, help="Clear the current inputs and result to build a fresh prompt. Saved library prompts are kept."):
+        reset_for_new_prompt()
+        st.rerun()
+
+    st.markdown("---")
+    with st.expander("Advanced AI Options", expanded=False):
         ollama_base_url = st.text_input("Ollama URL (Local AI Engine)", value=st.session_state.get("ollama_base_url", "http://localhost:11434"))
         st.session_state["ollama_base_url"] = ollama_base_url.rstrip("/")
 
         try:
-            ollama_models = fetch_ollama_models(st.session_state["ollama_base_url"])
+            ollama_models = fetch_cached_ollama_models(st.session_state["ollama_base_url"])
         except Exception:
             ollama_models = []
             st.error("Cannot connect to local AI Engine. Make sure Ollama is running.")
@@ -368,7 +413,7 @@ with st.sidebar:
             st.session_state["ollama_selected_model"] = st.text_input("AI Model to use:", value=st.session_state.get("ollama_selected_model", default_model))
 
         if DSPY_AVAILABLE:
-            st.session_state["dspy_mode"] = st.toggle("Use DSPy to improve prompt writing (optional)", value=st.session_state.get("dspy_mode", False))
+            st.session_state["dspy_mode"] = st.toggle("Use DSPy to improve prompt writing (recommended)", value=st.session_state.get("dspy_mode", True))
             if st.session_state["dspy_mode"]:
                 st.caption("DSPy can improve wording and structure, but generation may take a little longer.")
                 method_choice = st.radio(
@@ -411,9 +456,9 @@ with st.sidebar:
         "approval_status": st.session_state.get("approval_status", "draft"),
         "validation_errors": st.session_state.get("validation_errors", []),
     }
-    st.download_button("💾 Save Project", data=json.dumps(state_to_save, indent=2), file_name="prompt_builder_save.json", mime="application/json", use_container_width=True)
+    st.download_button("Save Project", data=json.dumps(state_to_save, indent=2), file_name="prompt_builder_save.json", mime="application/json", use_container_width=True)
 
-    uploaded_state = st.file_uploader("📂 Load Project", type=["json"], label_visibility="collapsed")
+    uploaded_state = st.file_uploader("Load Project", type=["json"], label_visibility="collapsed")
     if uploaded_state is not None:
         upload_hash = hash(uploaded_state.getvalue())
         if st.session_state.get("last_uploaded_hash") != upload_hash:
@@ -431,21 +476,6 @@ with st.sidebar:
                 st.rerun()
             except Exception as exc:
                 st.error(f"Failed to load project: {exc}")
-
-    st.markdown("---")
-    with st.expander("Notebook / API integration", expanded=False):
-        package_for_api = st.session_state.get("prompt_package")
-        if package_for_api:
-            server_snippet, curl_snippet, python_snippet = build_api_snippets(package_for_api)
-            st.caption("Start the local API server, then call it from a notebook, script, or another app.")
-            st.markdown("**Start local API server**")
-            st.code(server_snippet, language="bash")
-            st.markdown("**cURL example**")
-            st.code(curl_snippet, language="bash")
-            st.markdown("**Python / notebook example**")
-            st.code(python_snippet, language="python")
-        else:
-            st.caption("Generate or load a prompt package to see notebook and API snippets here.")
 
 st.markdown(theme_css(st.session_state.get("theme_mode", "Light")), unsafe_allow_html=True)
 render_hero_section()
@@ -477,63 +507,119 @@ if current_step == 1:
         st.session_state["custom_persona_name"] = custom_persona_name
     job_role = st.text_area("What are their day-to-day responsibilities?", value=job_role, height=110, placeholder="Example: Reviews safety compliance, writes incident reports, drafts remediation guidance...", key=f"job_role_{load_ver}")
     st.session_state["job_role"] = job_role
-    if st.button("Continue to Step 2 →", type="primary", use_container_width=True):
+    needs_custom_title = "Custom" in persona_choice and not custom_persona_name.strip()
+    persona_ready = not needs_custom_title
+    if needs_custom_title:
+        st.caption("Enter the expert's title to continue.")
+    elif not job_role.strip():
+        st.caption("Tip: describing the day-to-day responsibilities improves the result, but it's optional — you can continue now.")
+    if st.button("Continue to Step 2 →", type="primary", use_container_width=True, disabled=not persona_ready):
         st.session_state["current_step"] = 2
         st.rerun()
 
 elif current_step == 2:
     render_section_intro(
         "Step 2",
-        "Define the task and grounding inputs",
-        "Give the app the task, any constraints, and optional references so the final prompt package is easier to control and review.",
+        "Describe the task and add reference material",
+        "Tell the app what you need, add any limits or formatting rules, and optionally upload examples or source material.",
     )
-    safe_task_index = TASKS.index(task_choice) if task_choice in TASKS else len(TASKS) - 1
-    task_choice = st.selectbox("Select a typical task:", TASKS, index=safe_task_index, key=f"task_choice_{load_ver}")
-    st.session_state["task_choice"] = task_choice
-    if task_choice == "Custom task...":
-        custom_task = st.text_input("Describe the task here:", value=custom_task, placeholder="Example: Draft a customer-ready incident response summary.", key=f"custom_task_{load_ver}")
-        st.session_state["custom_task"] = custom_task
+    with st.container(border=True):
+        st.markdown("#### 1. Task")
+        safe_task_index = TASKS.index(task_choice) if task_choice in TASKS else len(TASKS) - 1
+        task_choice = st.selectbox("What should the prompt help with?", TASKS, index=safe_task_index, key=f"task_choice_{load_ver}")
+        st.session_state["task_choice"] = task_choice
+        if task_choice == "Custom task...":
+            custom_task = st.text_input("Describe the task", value=custom_task, placeholder="Example: Draft a customer-ready incident response summary.", key=f"custom_task_{load_ver}")
+            st.session_state["custom_task"] = custom_task
 
-    additional_context = st.text_area("Business rules, formatting needs, or constraints", value=additional_context, height=90, placeholder="Example: Keep it under 250 words, cite the policy source, and flag unresolved risks.", key=f"additional_context_{load_ver}")
-    st.session_state["additional_context"] = additional_context
+        additional_context = st.text_area(
+            "Rules, formatting needs, or constraints",
+            value=additional_context,
+            height=90,
+            placeholder="Example: Keep it under 250 words, cite the policy source, and flag unresolved risks.",
+            key=f"additional_context_{load_ver}",
+        )
+        st.session_state["additional_context"] = additional_context
 
-    st.write("---")
-    st.markdown("### Style grounding")
-    render_helper_card(
-        "Use style references for tone and structure",
-        f"Upload up to {MAX_GROUNDING_DOCUMENTS} files to guide voice, heading patterns, vocabulary, and formatting. These references shape style only, not factual claims.",
-    )
-    style_guide_notes = st.text_area("Manual style guidance", value=style_guide_notes, height=110, placeholder="Example: Sound like a concise enterprise policy memo. Prefer short paragraphs and plain language.", key=f"style_notes_{load_ver}")
-    st.session_state["style_guide_notes"] = style_guide_notes
-    style_uploads = st.file_uploader("Upload style references", type=SUPPORTED_UPLOAD_TYPES, accept_multiple_files=True, key=f"style_uploads_{load_ver}")
-    if style_uploads:
-        if len(style_uploads) > MAX_GROUNDING_DOCUMENTS:
-            st.warning(f"Only the first {MAX_GROUNDING_DOCUMENTS} style documents will be used.")
-        st.session_state["style_source_catalog"] = extract_grounding_documents(style_uploads, "style")
-    render_source_catalog("Uploaded style references", st.session_state.get("style_source_catalog", []))
+    style_col, factual_col = st.columns(2)
 
-    st.write("---")
-    st.markdown("### Factual grounding")
-    render_helper_card(
-        "Use factual references for evidence only",
-        f"Upload up to {MAX_GROUNDING_DOCUMENTS} files that contain approved facts. The generated package will require source attribution and should separate evidence from assumptions.",
-    )
-    factual_reference_notes = st.text_area("Manual factual notes", value=factual_reference_notes, height=110, placeholder="Example: Internal policy summary, approved pricing language, or customer requirements.", key=f"factual_notes_{load_ver}")
-    st.session_state["factual_reference_notes"] = factual_reference_notes
-    factual_uploads = st.file_uploader("Upload factual references", type=SUPPORTED_UPLOAD_TYPES, accept_multiple_files=True, key=f"factual_uploads_{load_ver}")
-    if factual_uploads:
-        if len(factual_uploads) > MAX_GROUNDING_DOCUMENTS:
-            st.warning(f"Only the first {MAX_GROUNDING_DOCUMENTS} factual documents will be used.")
-        st.session_state["factual_source_catalog"] = extract_grounding_documents(factual_uploads, "factual")
-    render_source_catalog("Uploaded factual references", st.session_state.get("factual_source_catalog", []))
+    with style_col:
+        with st.container(border=True):
+            st.markdown("#### 2. Optional writing examples")
+            st.caption("Use this when you want the output to match a certain tone, structure, or voice.")
+            style_guide_notes = st.text_area(
+                "Writing style notes",
+                value=style_guide_notes,
+                height=110,
+                placeholder="Example: Sound like a concise policy memo. Use short paragraphs and plain language.",
+                key=f"style_notes_{load_ver}",
+            )
+            st.session_state["style_guide_notes"] = style_guide_notes
+            style_uploads = st.file_uploader(
+                "Upload writing examples",
+                type=SUPPORTED_UPLOAD_TYPES,
+                accept_multiple_files=True,
+                key=f"style_uploads_{load_ver}",
+            )
+            if style_uploads:
+                if len(style_uploads) > MAX_GROUNDING_DOCUMENTS:
+                    st.warning(f"Only the first {MAX_GROUNDING_DOCUMENTS} writing examples will be used.")
+                style_upload_signature = build_upload_signature(style_uploads)
+                if st.session_state.get("style_upload_signature") != style_upload_signature:
+                    st.session_state["style_source_catalog"] = extract_cached_grounding_documents(
+                        build_file_payloads(style_uploads),
+                        "style",
+                    )
+                    st.session_state["style_upload_signature"] = style_upload_signature
+            elif st.session_state.get("style_upload_signature"):
+                st.session_state["style_upload_signature"] = ""
+                st.session_state["style_source_catalog"] = []
+            render_source_catalog("Writing examples", st.session_state.get("style_source_catalog", []))
 
+    with factual_col:
+        with st.container(border=True):
+            st.markdown("#### 3. Optional source material")
+            st.caption("Use this when the response must rely on approved facts or source documents.")
+            factual_reference_notes = st.text_area(
+                "Fact notes",
+                value=factual_reference_notes,
+                height=110,
+                placeholder="Example: Internal policy summary, approved pricing language, or customer requirements.",
+                key=f"factual_notes_{load_ver}",
+            )
+            st.session_state["factual_reference_notes"] = factual_reference_notes
+            factual_uploads = st.file_uploader(
+                "Upload source material",
+                type=SUPPORTED_UPLOAD_TYPES,
+                accept_multiple_files=True,
+                key=f"factual_uploads_{load_ver}",
+            )
+            if factual_uploads:
+                if len(factual_uploads) > MAX_GROUNDING_DOCUMENTS:
+                    st.warning(f"Only the first {MAX_GROUNDING_DOCUMENTS} source files will be used.")
+                factual_upload_signature = build_upload_signature(factual_uploads)
+                if st.session_state.get("factual_upload_signature") != factual_upload_signature:
+                    st.session_state["factual_source_catalog"] = extract_cached_grounding_documents(
+                        build_file_payloads(factual_uploads),
+                        "factual",
+                    )
+                    st.session_state["factual_upload_signature"] = factual_upload_signature
+            elif st.session_state.get("factual_upload_signature"):
+                st.session_state["factual_upload_signature"] = ""
+                st.session_state["factual_source_catalog"] = []
+            render_source_catalog("Source material", st.session_state.get("factual_source_catalog", []))
+
+    task_value = custom_task if task_choice == "Custom task..." else task_choice
+    task_ready = bool((task_value or "").strip())
     col1, col2 = st.columns(2)
     with col1:
         if st.button("← Back to Step 1", use_container_width=True):
             st.session_state["current_step"] = 1
             st.rerun()
     with col2:
-        if st.button("Continue & Finalize →", type="primary", use_container_width=True):
+        if not task_ready:
+            st.caption("Describe the custom task to continue.")
+        if st.button("Continue & Finalize →", type="primary", use_container_width=True, disabled=not task_ready):
             st.session_state["current_step"] = 3
             st.rerun()
 
@@ -565,13 +651,22 @@ else:
         ]
     )
 
+    active_model = st.session_state.get("ollama_selected_model", "llama3.1:latest")
+    active_base_url = st.session_state.get("ollama_base_url", "http://localhost:11434")
+    st.caption(f"Generation will use **{active_model}** at {active_base_url}.")
+
+    inputs_ready = bool((final_persona or "").strip()) and bool((final_task or "").strip())
+    gen_label = "Regenerate Package" if st.session_state.get("prompt_package") else "Generate Prompt Package"
+
     col1, col2 = st.columns(2)
     with col1:
         if st.button("← Edit Inputs", use_container_width=True):
             st.session_state["current_step"] = 2
             st.rerun()
     with col2:
-        gen_btn = st.button("✨ Generate Prompt Package", type="primary", use_container_width=True)
+        gen_btn = st.button(gen_label, type="primary", use_container_width=True, disabled=not inputs_ready)
+    if not inputs_ready:
+        st.caption("Persona and task are required before generating. Use **← Edit Inputs** to add them.")
 
     if gen_btn:
         base_url = st.session_state.get("ollama_base_url", "http://localhost:11434").rstrip("/")
@@ -625,10 +720,7 @@ else:
                     package["grounding_strategy"] = getattr(pred, "grounding_strategy", package["grounding_strategy"]) or package["grounding_strategy"]
                     package = finalize_prompt_package(
                         package,
-                        {
-                            **metadata,
-                            "dspy_helper_status": helper_status,
-                        },
+                        {**metadata, "dspy_helper_status": helper_status},
                     )
                 else:
                     generation_prompt = build_generation_prompt(fallback_package, final_persona, job_role, final_task, additional_context, style_brief, factual_brief)
@@ -714,6 +806,16 @@ else:
         else:
             st.success("Prompt package generated and validated successfully.")
 
+        result_action_col1, result_action_col2 = st.columns(2)
+        with result_action_col1:
+            if st.button("➕ Start New Prompt", use_container_width=True, help="Clear the current inputs and result to build a fresh prompt."):
+                reset_for_new_prompt()
+                st.rerun()
+        with result_action_col2:
+            if st.button("← Edit Inputs & Regenerate", use_container_width=True):
+                st.session_state["current_step"] = 2
+                st.rerun()
+
         evaluation = package.get("evaluation") or evaluate_prompt_package(package)
         render_score_card(evaluation)
 
@@ -743,18 +845,38 @@ else:
         with prompt_tab:
             st.markdown("**System Prompt**")
             st.code(package.get("system_prompt", ""), language="markdown")
-            copy_button_html(package.get("system_prompt", ""), "Copy System Prompt", key="sys_prompt")
+            copy_button_html(
+                package.get("system_prompt", ""),
+                "Copy System Prompt",
+                key="sys_prompt",
+                theme_mode=st.session_state.get("theme_mode", "Light"),
+            )
 
             st.markdown("**User Prompt Template**")
             st.code(package.get("user_prompt_template", ""), language="markdown")
-            copy_button_html(package.get("user_prompt_template", ""), "Copy User Prompt", key="usr_prompt")
+            copy_button_html(
+                package.get("user_prompt_template", ""),
+                "Copy User Prompt",
+                key="usr_prompt",
+                theme_mode=st.session_state.get("theme_mode", "Light"),
+            )
 
             download_text = f"=== SYSTEM PROMPT ===\n{package.get('system_prompt', '')}\n\n=== USER PROMPT TEMPLATE ===\n{package.get('user_prompt_template', '')}"
             action_col1, action_col2 = st.columns(2)
             with action_col1:
-                st.download_button("📥 Download Prompts (.txt)", data=download_text, file_name="generated_prompts.txt", mime="text/plain", use_container_width=True)
+                st.download_button("Download Prompts (.txt)", data=download_text, file_name="generated_prompts.txt", mime="text/plain", use_container_width=True)
             with action_col2:
-                st.download_button("🧾 Download Prompt Package (.json)", data=json.dumps(package, indent=2), file_name="prompt_package.json", mime="application/json", use_container_width=True)
+                st.download_button("Download Prompt Package (.json)", data=json.dumps(package, indent=2), file_name="prompt_package.json", mime="application/json", use_container_width=True)
+
+            if st.button("Save to Prompt Library", use_container_width=True):
+                try:
+                    saved_entry = save_package_to_library(package)
+                    st.session_state["last_saved_library_id"] = saved_entry.get("id")
+                    st.success(f"Saved to prompt library as \"{saved_entry.get('title', 'Untitled prompt')}\" (id: {saved_entry.get('id')}).")
+                except ValueError as exc:
+                    st.warning(str(exc))
+                except Exception as exc:  # noqa: BLE001 - surface any storage error to the user
+                    st.error(f"Could not save to prompt library: {exc}")
 
         with governance_tab:
             note_tab, schema_tab = st.tabs(["Analysis & Grounding", "Schemas, Policies & Tests"])
@@ -794,3 +916,38 @@ else:
                     st.session_state["prompt_package"] = copy.deepcopy(item)
                     st.session_state["approval_status"] = item.get("metadata", {}).get("approval_status", "draft")
                     st.rerun()
+
+
+def render_saved_library_sidebar() -> None:
+    """Show prompts saved to the local library, newest first, with their JSON.
+
+    Rendered at the end of the script so a prompt saved during this run (the
+    'Save to Prompt Library' button executes earlier) appears immediately.
+    """
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### Saved to Prompt Library")
+        try:
+            total = count_library_prompts()
+            saved_prompts = list_library_prompts(limit=25)
+        except Exception as exc:  # noqa: BLE001 - surface storage/read errors in the UI
+            st.caption(f"Could not read the prompt library: {exc}")
+            return
+
+        if not saved_prompts:
+            st.caption("No prompts saved yet. Generate a package, then use **Save to Prompt Library**.")
+            return
+
+        last_saved_id = st.session_state.get("last_saved_library_id")
+        suffix = "" if total == 1 else "s"
+        more = f" (showing latest {len(saved_prompts)})" if total > len(saved_prompts) else ""
+        st.caption(f"{total} saved prompt{suffix}{more}.")
+
+        for entry in saved_prompts:
+            is_last = entry.get("id") == last_saved_id
+            label = f"{'✅ ' if is_last else ''}{entry.get('title', 'Untitled prompt')}"
+            with st.expander(label, expanded=is_last):
+                st.json(entry)
+
+
+render_saved_library_sidebar()

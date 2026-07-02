@@ -34,6 +34,7 @@ Prompt history, approval tracking, and project-level audit context are managed b
 - Readiness scoring with saved evaluation results
 - Prompt package history, versioning, and approval status
 - JSON project export and import
+- Reusable prompt library for saved system/user prompts, exposed via REST API and an MCP server
 
 ---
 
@@ -47,6 +48,7 @@ Prompt history, approval tracking, and project-level audit context are managed b
 | pypdf | recent | PDF grounding extraction |
 | python-docx | recent | DOCX grounding extraction |
 | dspy-ai | optional | DSPy generation mode |
+| mcp | recent | Prompt-library MCP server (`mcp_server.py`) |
 | Ollama | recent | Local model runtime |
 
 ---
@@ -218,12 +220,14 @@ DSPy does not replace validation. Prompt Studio still checks the generated packa
 ```text
 Prompt Studio/
 ├── api_server.py
+├── mcp_server.py
 ├── core/
 │   ├── dspy_module.py
 │   ├── fallback_builder.py
 │   ├── grounding.py
 │   ├── llm_api.py
 │   ├── package_service.py
+│   ├── prompt_library.py
 │   └── utils.py
 ├── ui/
 │   ├── components.py
@@ -264,67 +268,86 @@ These helpers are intended for integration work in services, scripts, or future 
 
 ---
 
-## Notebook / API Integration
+## Programmatic Use
 
-Prompt Studio now includes a local API so you can generate prompt packages from:
+Prompt generation runs **in-process**, not behind an HTTP service. To generate prompt packages from a notebook, script, or automation tool, import the package service directly:
 
-- Jupyter notebooks
-- Python scripts
-- automation tools
-- other local apps
+```python
+from core.package_service import generate_prompt_package
 
-### Start the API server
+package, validation_errors = generate_prompt_package(
+    final_persona="Marketing Strategist",
+    job_role="Owns launch messaging and campaign planning.",
+    final_task="Draft professional emails or letters",
+    additional_context="Keep the output concise and easy to review.",
+    style_brief="Use short paragraphs and clear headings.",
+    factual_brief="Use only approved product facts.",
+    model_name="qwen2.5:latest",
+    base_url="http://localhost:11434",
+)
+```
+
+The bundled eval runner (`evals/run_eval_set.py`) uses this same in-process path for batch generation.
+
+The HTTP API service (`api_server.py`) is **library-only** — it stores and retrieves saved prompts. See [Prompt Library (API + MCP)](#prompt-library-api--mcp) below.
+
+---
+
+## Prompt Library (API + MCP)
+
+Generated system and user prompts can be saved to a reusable **prompt library** so they can be retrieved later from the app, scripts, or AI tooling. The library is a single local JSON file (`prompt_library.json` by default) written atomically, and the **same store** is exposed two ways: a REST API service and an MCP server.
+
+Set the library location with the `PROMPT_LIBRARY_PATH` environment variable (defaults to `prompt_library.json` in the project root).
+
+Each stored entry includes `id`, `title`, `persona`, `task`, `system_prompt`, `user_prompt`, `tags`, `approval_status`, `model_name`, `source_package_id`, a content hash (used for de-duplication), timestamps, and a `metadata` block.
+
+The `persona` and `task` values are automatically added to `tags` (de-duplicated against any tags you pass), so prompts are filterable by persona or task via the `tag` query filter.
+
+### Saving from the app
+
+After generating a package, click **Save to Prompt Library** in the prompt tab. Saving the same prompt content twice returns the existing entry instead of creating a duplicate.
+
+### REST API service
+
+The library endpoints are served by the same FastAPI app (`api_server.py`):
 
 ```bash
 uvicorn api_server:app --host 127.0.0.1 --port 8000
 ```
 
-### Health check
+- `POST /library/prompts` — save a `system_prompt` / `user_prompt` pair with optional `title`, `persona`, `task`, `tags`, `approval_status`, `model_name`, `source_package_id`, `metadata`, `dedupe`
+- `POST /library/save-package` — save the system/user prompt extracted from a full generated `package`
+- `GET /library/prompts` — list prompts, with optional `persona`, `task`, `tag`, `search`, and `limit` query filters (newest first)
+- `GET /library/prompts/{id}` — fetch one prompt
+- `DELETE /library/prompts/{id}` — delete one prompt
+
+`GET /health` also reports the active `library_path` and `library_count`.
+
+### MCP server
+
+`mcp_server.py` exposes the library to MCP clients (such as Claude Desktop) over stdio:
 
 ```bash
-curl http://127.0.0.1:8000/health
+python mcp_server.py
 ```
 
-### Generate a package
+Tools: `save_prompt`, `list_prompts`, `get_prompt`, `delete_prompt`.
 
-Send a `POST` request to `/generate-package` with fields such as:
+Example MCP client registration:
 
-- `persona`
-- `job_role`
-- `task`
-- `additional_context`
-- `style_brief`
-- `factual_brief`
-- `model_name`
-- `base_url`
-- `use_quality_helper`
-- `quality_method`
-
-### Notebook example
-
-```python
-import requests
-
-payload = {
-	"persona": "Marketing Strategist",
-	"job_role": "Owns launch messaging and campaign planning.",
-	"task": "Draft professional emails or letters",
-	"additional_context": "Keep the output concise and easy to review.",
-	"style_brief": "Use short paragraphs and clear headings.",
-	"factual_brief": "Use only approved product facts.",
-	"model_name": "qwen2.5:latest",
-	"base_url": "http://localhost:11434",
-	"use_quality_helper": False,
-	"quality_method": "ChainOfThought"
+```json
+{
+  "mcpServers": {
+    "prompt-studio-library": {
+      "command": "python",
+      "args": ["mcp_server.py"],
+      "env": { "PROMPT_LIBRARY_PATH": "prompt_library.json" }
+    }
+  }
 }
-
-response = requests.post("http://127.0.0.1:8000/generate-package", json=payload, timeout=120)
-response.raise_for_status()
-package = response.json()["package"]
-package
 ```
 
-The Streamlit UI also shows ready-to-copy API and notebook snippets for each generated package.
+The MCP SDK (`mcp`) is listed in `requirements.txt`. The Streamlit app and REST API do not require it; only the MCP server does.
 
 ---
 
@@ -351,7 +374,6 @@ Optional arguments:
 
 - `--model-name`
 - `--base-url`
-- `--api-url`
 - `--eval-set`
 - `--output-dir`
 

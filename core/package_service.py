@@ -40,12 +40,12 @@ Now generate a new structured prompt package for these inputs:
 - Factual grounding brief: {factual_brief or 'None provided'}
 
 Requirements:
-1. `system_prompt` must start with "You are" and cover role scope, accepted data sources, grounding rules, uncertainty handling, compliance constraints, refusal triggers, red-team checks, and escalation triggers.
+1. `system_prompt` must start with "You are" and concisely set role scope, accepted data sources, grounding rules, uncertainty handling, and the key refusal/escalation triggers — only what changes the model's behavior.
 2. `user_prompt_template` must include semantically named placeholders such as [TASK_GOAL], [INPUT_CONTENT], [CONSTRAINTS], [OUTPUT_AUDIENCE], [DELIVERABLE_FORMAT], [STYLE_GUIDE], [FACTUAL_SOURCES], and [FACT_SOURCE_1] where relevant.
 3. When factual grounding is present, require inline source attribution using [SOURCE_ID] tokens and separate verified facts from assumptions.
 4. Keep `input_schema`, `output_schema`, `safety_policy`, `escalation_policy`, `acceptance_tests`, and `metadata` as JSON objects or arrays, not strings.
 5. Never fabricate citations, policies, legal conclusions, medical advice, financial claims, or customer-specific facts.
-6. The package must be auditable by a human reviewer.
+6. Be concise and specific: plain language, no filler, hedging, or repetition. Aim for roughly 90–150 words in `system_prompt` and 60–120 in `user_prompt_template`, and keep the package auditable by a human reviewer.
 """.strip()
 
 
@@ -67,7 +67,7 @@ Repair rules:
 2. Add any missing fields from the template package.
 3. Keep `input_schema`, `output_schema`, `safety_policy`, `escalation_policy`, `acceptance_tests`, and `metadata` as JSON objects or arrays, never as strings.
 4. Ensure `user_prompt_template` contains at least 5 semantically named placeholders and an inline output contract beginning with `Provide:` or `(1)`.
-5. Ensure `system_prompt` starts with `You are` and remains at least 120 words.
+5. Ensure `system_prompt` starts with `You are`, stays at least 80 words, and is concise (no filler or repetition).
 6. Ensure all factual-grounding rules use `[SOURCE_ID]` notation.
 """.strip()
 
@@ -212,7 +212,10 @@ def generate_prompt_package(
             package["user_prompt_template"] = getattr(pred, "user_prompt", package["user_prompt_template"]) or package["user_prompt_template"]
             package["language_notes"] = getattr(pred, "language_notes", package["language_notes"]) or package["language_notes"]
             package["grounding_strategy"] = getattr(pred, "grounding_strategy", package["grounding_strategy"]) or package["grounding_strategy"]
-            return finalize_prompt_package(package, {**metadata, "dspy_helper_status": helper_status}), validation_errors
+            return finalize_prompt_package(
+                package,
+                {**metadata, "dspy_helper_status": helper_status},
+            ), validation_errors
 
         generation_prompt = build_generation_prompt(fallback_package, final_persona, job_role, final_task, additional_context, style_brief, factual_brief)
         response = requests.post(
